@@ -1,0 +1,175 @@
+
+#include <Servo.h>           // Include Servo motor library
+#include <AFMotor.h>         // Include motor driver library
+
+#define Echo A0              // Define Echo pin for ultrasonic sensor
+#define Trig A1              // Define Trig pin for ultrasonic sensor
+#define motor 10             // Servo motor connected to pin 10
+#define Speed 170            // Default speed for DC motors
+#define spoint 103           // Center point angle for servo
+
+char value;                  // Variable to store serial input
+int distance;                // Distance from ultrasonic
+int Left;                    // Distance to left
+int Right;                   // Distance to right
+int L = 0;                   // Temp variable for left scan
+int R = 0;                   // Temp variable for right scan
+int L1 = 0;                  // Unused variable
+int R1 = 0;                  // Unused variable
+
+Servo servo;                 // Create servo object
+AF_DCMotor M1(1);            // Motor 1 on channel 1
+AF_DCMotor M2(2);            // Motor 2 on channel 2
+AF_DCMotor M3(3);            // Motor 3 on channel 3
+AF_DCMotor M4(4);            // Motor 4 on channel 4
+
+void setup() {
+  Serial.begin(9600);        // Initialize serial communication
+  pinMode(Trig, OUTPUT);     // Set Trig as output
+  pinMode(Echo, INPUT);      // Set Echo as input
+  servo.attach(motor);       // Attach servo to pin 10
+  M1.setSpeed(Speed);        // Set speed for motor 1
+  M2.setSpeed(Speed);        // Set speed for motor 2
+  M3.setSpeed(Speed);        // Set speed for motor 3
+  M4.setSpeed(Speed);        // Set speed for motor 4
+}
+void loop() {
+  //Obstacle();              // Uncomment to enable obstacle avoidance
+  //Bluetoothcontrol();      // Uncomment to enable Bluetooth control
+  voicecontrol();            // Enable voice control
+}
+
+void Bluetoothcontrol() {
+  if (Serial.available() > 0) {
+    value = Serial.read();   // Read command from serial
+    Serial.println(value);   // Echo command to serial monitor
+  }
+  if (value == 'F') {
+    forward();               // Move forward
+  } else if (value == 'B') {
+    backward();              // Move backward
+  } else if (value == 'L') {
+    left();                  // Turn left
+  } else if (value == 'R') {
+    right();                 // Turn right
+  } else if (value == 'S') {
+    Stop();                  // Stop movement
+  }
+}
+
+void Obstacle() {
+  distance = ultrasonic();   // Get distance from sensor
+  if (distance <= 12) {      // Check if obstacle is too close
+    Stop();                  // Stop motors
+    backward();              // Move backward
+    delay(100);              // Wait
+    Stop();                  // Stop again
+    L = leftsee();           // Scan left
+    servo.write(spoint);     // Center servo
+    delay(800);              // Wait
+    R = rightsee();          // Scan right
+    servo.write(spoint);     // Center servo again
+    if (L < R) {
+      right();               // Turn right if right is more clear
+      delay(500);            // Wait
+      Stop();                // Stop
+      delay(200);            // Short pause
+    } else if (L > R) {
+      left();                // Turn left if left is more clear
+      delay(500);            // Wait
+      Stop();                // Stop
+      delay(200);            // Short pause
+    }
+  } else {
+    forward();               // Move forward if path is clear
+  }
+}
+
+void voicecontrol() {
+  if (Serial.available() > 0) {
+    value = Serial.read();   // Read voice command from serial
+    Serial.println(value);   // Echo command
+    if (value == '^') {
+      forward();             // Move forward
+    } else if (value == '-') {
+      backward();            // Move backward
+    } else if (value == '<') {
+      L = leftsee();         // Scan left
+      servo.write(spoint);   // Center servo
+      if (L >= 10 ) {
+        left();              // Turn left if path is clear
+        delay(500);          // Wait
+        Stop();              // Stop
+      } else if (L < 10) {
+        Stop();              // Stop if obstacle too close
+      }
+    } else if (value == '>') {
+      R = rightsee();        // Scan right
+      servo.write(spoint);   // Center servo
+      if (R >= 10 ) {
+        right();             // Turn right if path is clear
+        delay(500);          // Wait
+        Stop();              // Stop
+      } else if (R < 10) {
+        Stop();              // Stop if obstacle too close
+      }
+    } else if (value == '*') {
+      Stop();                // Stop all motors
+    }
+  }
+}
+
+int ultrasonic() {
+  digitalWrite(Trig, LOW);   // Ensure Trig is low
+  delayMicroseconds(4);      // Wait
+  digitalWrite(Trig, HIGH);  // Send pulse
+  delayMicroseconds(10);     // Wait
+  digitalWrite(Trig, LOW);   // Stop pulse
+  long t = pulseIn(Echo, HIGH); // Measure echo time
+  long cm = t / 29 / 2;      // Convert time to cm
+  return cm;                 // Return distance
+}
+
+void forward() {
+  M1.run(FORWARD);           // Run motor 1 forward
+  M2.run(FORWARD);           // Run motor 2 forward
+  M3.run(FORWARD);           // Run motor 3 forward
+  M4.run(FORWARD);           // Run motor 4 forward
+}
+void backward() {
+  M1.run(BACKWARD);          // Run motor 1 backward
+  M2.run(BACKWARD);          // Run motor 2 backward
+  M3.run(BACKWARD);          // Run motor 3 backward
+  M4.run(BACKWARD);          // Run motor 4 backward
+}
+void right() {
+  M1.run(BACKWARD);          // Right turn: reverse left side
+  M2.run(BACKWARD);
+  M3.run(FORWARD);           // Forward right side
+  M4.run(FORWARD);
+}
+void left() {
+  M1.run(FORWARD);           // Left turn: forward left side
+  M2.run(FORWARD);
+  M3.run(BACKWARD);          // Reverse right side
+  M4.run(BACKWARD);
+}
+void Stop() {
+  M1.run(RELEASE);           // Stop motor 1
+  M2.run(RELEASE);           // Stop motor 2
+  M3.run(RELEASE);           // Stop motor 3
+  M4.run(RELEASE);           // Stop motor 4
+}
+int rightsee() {
+  servo.write(20);           // Rotate servo to right
+  delay(800);                // Wait for movement
+  Left = ultrasonic();       // Get distance on right
+  return Left;
+}
+
+int leftsee() {
+  servo.write(180);          // Rotate servo to left
+  delay(800);                // Wait for movement
+  Right = ultrasonic();      // Get distance on left
+  return Right;
+}
